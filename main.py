@@ -91,13 +91,14 @@ def send_welcome_if_needed():
 
 
 def run_scheduler():
+    """Scheduler loop - runs in BACKGROUND thread."""
     schedule.every().day.at("08:00").do(job_morning)
     schedule.every().day.at("10:00").do(job_quiz)
     schedule.every().day.at("12:00").do(job_exam)
     schedule.every().day.at("14:00").do(job_thematic)
 
-    logger.info("Scheduler running at 08:00, 10:00, 12:00, 14:00 UTC")
-    logger.info("(= 10:00, 12:00, 14:00, 16:00 Kyiv)")
+    logger.info("📅 Scheduler running at 08:00, 10:00, 12:00, 14:00 UTC")
+    logger.info("   (= 10:00, 12:00, 14:00, 16:00 Kyiv)")
 
     while True:
         schedule.run_pending()
@@ -105,33 +106,35 @@ def run_scheduler():
 
 
 def run_http_server():
-    """HTTP server for Render Web Service (requires open port)."""
+    """HTTP server - runs in MAIN thread for Render."""
     from http.server import HTTPServer, BaseHTTPRequestHandler
     
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
+            self.send_header('Content-type', 'text/plain; charset=utf-8')
             self.end_headers()
-            self.wfile.write(b'Bot is running')
+            self.wfile.write('🤖 Bot is running'.encode('utf-8'))
         
         def log_message(self, *args):
-            pass  # Don't log HTTP requests
+            pass  # Don't spam logs with HTTP requests
     
     port = int(os.environ.get('PORT', 10000))
-    logger.info(f"✅ HTTP server on port {port}")
-    HTTPServer(('0.0.0.0', port), Handler).serve_forever()
+    server = HTTPServer(('0.0.0.0', port), Handler)
+    logger.info(f"🌐 HTTP server running on port {port}")
+    server.serve_forever()
 
 
 def main():
     startup_checks()
     send_welcome_if_needed()
 
-    # HTTP server in background (for Render)
-    Thread(target=run_http_server, daemon=True).start()
+    # Start SCHEDULER in background thread
+    scheduler_thread = Thread(target=run_scheduler, daemon=True)
+    scheduler_thread.start()
 
-    # Scheduler in main thread
-    run_scheduler()
+    # Run HTTP server in MAIN thread (blocks forever)
+    run_http_server()
 
 
 if __name__ == "__main__":
