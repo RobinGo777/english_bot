@@ -1,23 +1,13 @@
 """
 main.py — Entry point for the English Learning Telegram Bot.
-
-Schedule (UTC):
-  08:00 → Morning Boost
-  10:00 → Daily Quiz
-  12:00 → Exam Prep
-  14:00 → Thematic Content
-
-Run: python main.py
 """
 import logging
 import os
 import sys
 import time
-from datetime import datetime
-
+from threading import Thread
 import schedule
 
-# ── Logging setup ─────────────────────────────────────────
 LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 logging.basicConfig(
     level=logging.INFO,
@@ -29,7 +19,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("main")
 
-# ── Imports after logging setup ───────────────────────────
 from utils.redis_client import ping as redis_ping, log_post_published
 from utils.telegram_sender import send_welcome
 from content.post1_morning import post_morning_boost
@@ -39,11 +28,10 @@ from content.post4_thematic import post_thematic
 
 
 def safe_run(fn, post_type: str):
-    """Wrap a post function with error handling and logging."""
     logger.info("▶ Starting: %s", post_type)
     try:
         success = fn()
-        status = "✅ OK" if success else "⚠️ Failed (sent fallback)"
+        status = "✅ OK" if success else "⚠️ Failed"
         logger.info("%s | %s", post_type, status)
         log_post_published(post_type, success)
     except Exception as e:
@@ -65,88 +53,102 @@ def job_thematic():
 
 
 def startup_checks():
-    """Verify all required services are reachable before starting."""
     logger.info("═" * 50)
     logger.info("English Bot starting up…")
     logger.info("═" * 50)
 
-    # Check Redis
     if redis_ping():
         logger.info("✅ Redis connection OK")
     else:
-        logger.critical("❌ Redis connection FAILED — exiting.")
+        logger.critical("❌ Redis FAILED")
         sys.exit(1)
 
-    # Check Telegram token
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    if not token:
-        logger.critical("❌ TELEGRAM_BOT_TOKEN not set — exiting.")
+    if not os.environ.get("TELEGRAM_BOT_TOKEN"):
+        logger.critical("❌ TELEGRAM_BOT_TOKEN not set")
         sys.exit(1)
-    logger.info("✅ Telegram token present")
+    logger.info("✅ Telegram token OK")
 
-    # Check at least one AI key
-    gemini = os.environ.get("GEMINI_API_KEY", "")
-    groq   = os.environ.get("GROQ_API_KEY", "")
+    gemini = os.environ.get("GEMINI_API_KEY")
+    groq = os.environ.get("GROQ_API_KEY")
     if not gemini and not groq:
-        logger.warning("⚠️  No AI API keys set — bot will only use fallback posts.")
+        logger.warning("⚠️  No AI keys — using fallback posts only")
     elif gemini:
-        logger.info("✅ Gemini API key present")
+        logger.info("✅ Gemini API key OK")
     elif groq:
-        logger.info("✅ Groq API key present (Gemini not set)")
+        logger.info("✅ Groq API key OK")
 
     logger.info("═" * 50)
 
 
 def send_welcome_if_needed():
-    """Send welcome post only once (checked via Redis flag)."""
     from utils.redis_client import get_client
     r = get_client()
     if not r.get("welcome_sent"):
         logger.info("Sending welcome post…")
-        ok = send_welcome()
-        if ok:
+        if send_welcome():
             r.set("welcome_sent", "1")
-            logger.info("Welcome post sent and flagged.")
-        else:
-            logger.warning("Welcome post failed — will retry on next startup.")
+            logger.info("Welcome sent")
+
+
+def run_scheduler():
+    schedule.every().day.at("08:00").do(job_morning)
+    schedule.every().day.at("10:00").do(job_quiz)
+    schedule.every().day.at("12:00").do(job_exam)
+    schedule.every().day.at("14:00").do(job_thematic)
+
+    logger.info("Scheduler running at 08:00, 10:00, 12:00, 14:00 UTC")
+    logger.info("(= 10:00, 12:00, 14:00, 16:00 Kyiv)")
+
+    while True:
+        schedule.run_pending()
+        time.sleep(30)
+
+
+def run_http_server():
+    """HTTP server for Render Web Service (requires open port)."""
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'Bot is running')
+        
+        def log_message(self, *args):
+            pass  # Don't log HTTP requests
+    
+    port = int(os.environ.get('PORT', 10000))
+    logger.info(f"✅ HTTP server on port {port}")
+    HTTPServer(('0.0.0.0', port), Handler).serve_forever()
 
 
 def main():
     startup_checks()
     send_welcome_if_needed()
 
-    # ── Schedule jobs ─────────────────────────────────────
-    schedule.every().day.at("08:00").do(job_morning)
-    schedule.every().day.at("10:00").do(job_quiz)
-    schedule.every().day.at("12:00").do(job_exam)
-    schedule.every().day.at("14:00").do(job_thematic)
+    # HTTP server in background (for Render)
+    Thread(target=run_http_server, daemon=True).start()
 
-    logger.info("Scheduler running. Posts scheduled at 08:00, 10:00, 12:00, 14:00 UTC")
-    logger.info("(= 10:00, 12:00, 14:00, 16:00 Kyiv time in winter)")
-    logger.info("Press Ctrl+C to stop.\n")
-
-    while True:
-        schedule.run_pending()
-        time.sleep(30)  # check every 30 seconds
+    # Scheduler in main thread
+    run_scheduler()
 
 
 if __name__ == "__main__":
-    # Allow manual post testing: python main.py test morning
     if len(sys.argv) == 3 and sys.argv[1] == "test":
         post_map = {
-            "morning":  job_morning,
-            "quiz":     job_quiz,
-            "exam":     job_exam,
+            "morning": job_morning,
+            "quiz": job_quiz,
+            "exam": job_exam,
             "thematic": job_thematic,
-            "welcome":  send_welcome,
+            "welcome": send_welcome,
         }
-        key = sys.argv[2]
-        if key in post_map:
+        if sys.argv[2] in post_map:
             startup_checks()
-            logger.info("Running test post: %s", key)
-            post_map[key]()
+            logger.info(f"Testing: {sys.argv[2]}")
+            post_map[sys.argv[2]]()
         else:
-            print(f"Unknown post type. Choose from: {list(post_map.keys())}")
+            print(f"Options: {list(post_map.keys())}")
         sys.exit(0)
 
     main()
