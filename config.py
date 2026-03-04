@@ -25,8 +25,8 @@ HISTORY_DAYS = 90          # don't repeat topics within N days
 VOCAB_LIST_SIZE = 15       # words in thematic vocabulary list
 
 # ── AI model names ────────────────────────────────────────
-GEMINI_MODEL = "gemini-1.5-flash"
-GROQ_MODEL   = "llama3-70b-8192"   # free tier Groq model
+GEMINI_MODEL = "gemini-2.0-flash-exp"
+GROQ_MODEL   = "llama-3.1-70b-versatile"   # free tier Groq model
 
 # ── System prompt for all AI calls ───────────────────────
 SYSTEM_PROMPT = """You are an expert English language teacher creating educational Telegram channel posts.
