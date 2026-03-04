@@ -79,16 +79,18 @@ def post_daily_quiz() -> bool:
         logger.warning("AI failed or bad JSON — using fallback quiz.")
         quiz_data = random.choice(FALLBACK_QUIZ)
 
+    # СПОЧАТКУ текст з хештегами
+    tag = "#Grammar" if topic == "grammar" else "#Vocabulary"
+    intro_text = f"🎯 <b>Daily Quiz</b> — {tag}\n\n{tag} #DailyQuiz #DailyEnglish #LearnEnglish"
+    send_message(intro_text)
+
+    # ПОТІМ сам квіз
     success = send_quiz(
         question=quiz_data["question"],
         options=quiz_data["options"],
         correct_index=quiz_data["correct_index"],
         explanation=quiz_data.get("explanation", ""),
     )
-
-    # Send hashtag message after the quiz (polls can't contain hashtags)
-    tag = "#Grammar" if topic == "grammar" else "#Vocabulary"
-    send_message(f"🎯 <b>Daily Quiz</b> — {tag}\n\n{tag} #DailyQuiz #DailyEnglish #LearnEnglish")
 
     if success:
         increment_day_counter("quiz_day")
