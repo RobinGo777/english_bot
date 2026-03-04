@@ -105,6 +105,21 @@ def run_scheduler():
         time.sleep(30)
 
 
+def keep_alive():
+    """Ping ourselves every 10 minutes to prevent Render sleep."""
+    import requests
+    
+    url = os.environ.get("RENDER_EXTERNAL_URL", "https://english-bot-38iy.onrender.com")
+    
+    while True:
+        try:
+            time.sleep(600)  # 10 minutes
+            requests.get(url, timeout=10)
+            logger.info("🔄 Keep-alive ping sent")
+        except Exception as e:
+            logger.warning("Keep-alive ping failed: %s", e)
+
+
 def run_http_server():
     """HTTP server - runs in MAIN thread for Render."""
     from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -117,7 +132,7 @@ def run_http_server():
             self.wfile.write('🤖 Bot is running'.encode('utf-8'))
         
         def log_message(self, *args):
-            pass  # Don't spam logs with HTTP requests
+            pass
     
     port = int(os.environ.get('PORT', 10000))
     server = HTTPServer(('0.0.0.0', port), Handler)
@@ -132,6 +147,10 @@ def main():
     # Start SCHEDULER in background thread
     scheduler_thread = Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
+
+    # Start KEEP-ALIVE in background thread
+    keepalive_thread = Thread(target=keep_alive, daemon=True)
+    keepalive_thread.start()
 
     # Run HTTP server in MAIN thread (blocks forever)
     run_http_server()
