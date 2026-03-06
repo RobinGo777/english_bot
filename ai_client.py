@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Optional
 
-import google.generativeai as genai
+from google import genai
 from groq import Groq
 
 from config import (
@@ -22,12 +22,16 @@ def _call_gemini(prompt: str) -> Optional[str]:
         logger.warning("Gemini API key not set, skipping.")
         return None
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(
-            model_name=GEMINI_MODEL,
-            system_instruction=SYSTEM_PROMPT,
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config={
+                "system_instruction": SYSTEM_PROMPT,
+                "temperature": 0.85,
+                "max_output_tokens": 1200,
+            }
         )
-        response = model.generate_content(prompt)
         text = response.text.strip()
         logger.info("Gemini responded OK (%d chars)", len(text))
         return text
