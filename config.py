@@ -26,7 +26,7 @@ VOCAB_LIST_SIZE = 15       # words in thematic vocabulary list
 
 # ── AI model names ────────────────────────────────────────
 GEMINI_MODEL = "models/gemini-1.5-flash"
-GROQ_MODEL   = "llama3-70b-8192"   # free tier Groq model
+GROQ_MODEL   = "llama-3.3-70b-versatile"   # free tier Groq model
 
 # ── System prompt for all AI calls ───────────────────────
 SYSTEM_PROMPT = """You are an expert English language teacher creating educational Telegram channel posts.
