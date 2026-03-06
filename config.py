@@ -25,7 +25,8 @@ HISTORY_DAYS = 90          # don't repeat topics within N days
 VOCAB_LIST_SIZE = 15       # words in thematic vocabulary list
 
 # ── AI model names ────────────────────────────────────────
-GEMINI_MODEL = "models/gemini-3-flash-preview"
+GEMINI_PRO_MODEL  = "models/gemini-3.1-pro"
+GEMINI_FLASH_MODEL = "models/gemini-3-flash-preview"
 GROQ_MODEL   = "llama-3.3-70b-versatile"   # free tier Groq model
 
 # ── System prompt for all AI calls ───────────────────────
